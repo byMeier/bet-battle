@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bet Battle</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif !important; }
+    body { background: #071824; font-family: 'Inter', sans-serif !important; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+    ::-webkit-scrollbar { width: 0; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body style="background-color: rgb(7, 24, 36);">
+  <div id="root"></div>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="components/data.jsx"></script>
+  <script type="text/babel" src="components/icons.jsx"></script>
+  <script type="text/babel" src="components/crests.jsx"></script>
+  <script type="text/babel" src="components/nav.jsx"></script>
+  <script type="text/babel" src="components/lobby.jsx"></script>
+  <script type="text/babel" src="components/matchmaking.jsx"></script>
+  <script type="text/babel" src="components/game-table.jsx"></script>
+  <script type="text/babel" src="components/screens.jsx"></script>
+  <script type="text/babel" src="components/friends.jsx"></script>
+  <script type="text/babel" src="components/objectives.jsx"></script>
+  <script type="text/babel" src="components/betting-markets-data.jsx"></script>
+  <script type="text/babel" src="components/betting-markets-ui.jsx"></script>
+  <script type="text/babel" src="components/bet-history-data.jsx"></script>
+  <script type="text/babel" src="components/bet-history-ui.jsx"></script>
+  <script type="text/babel" src="components/create-table.jsx"></script>
+  <script type="text/babel" src="components/match-cards.jsx"></script>
+  <script type="text/babel" src="components/match-selection.jsx"></script>
+  <script type="text/babel" src="components/last-longer.jsx"></script>
+  <script type="text/babel" src="components/tournament-detail.jsx"></script>
+  <script type="text/babel" src="components/tournament-tabs.jsx"></script>
+  <script type="text/babel" src="components/notifications.jsx"></script>
+  <script type="text/babel" src="components/notification-details.jsx"></script>
+
+  <script type="text/babel">
+
+
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#117cb2",
+  "deviceFrame": "light",
+  "objectivesStyle": "default",
+  "colorTheme": "Nuevo"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [screen, setScreen] = React.useState('home');
+  const [selectedTable, setSelectedTable] = React.useState(null);
+  const [tablesFilter, setTablesFilter] = React.useState(null);
+  const [selectedTournament, setSelectedTournament] = React.useState(null);
+  const [transitioning, setTransitioning] = React.useState(false);
+  const [slideDir, setSlideDir] = React.useState('left');
+  const [myTableIds, setMyTableIds] = React.useState([...INITIAL_MY_TABLES]);
+  const [pendingTable, setPendingTable] = React.useState(null);
+  const [acceptedTableIds, setAcceptedTableIds] = React.useState([...INITIAL_MY_TABLES]);
+  const [joinedTables, setJoinedTables] = React.useState({});
+  const [notifOpen, setNotifOpen] = React.useState(false);
+  const [notifUnread, setNotifUnread] = React.useState(NOTIFICATIONS_DATA.filter((n) => !n.read).length);
+  const [resultDetail, setResultDetail] = React.useState(null);
+  const [transactionDetail, setTransactionDetail] = React.useState(null);
+  const [lastLongerOpen, setLastLongerOpen] = React.useState(false);
+  const [lastLongerJoined, setLastLongerJoined] = React.useState(false);
+  const [notifVersion, setNotifVersion] = React.useState(0);
+  const [lastLongerSummary, setLastLongerSummary] = React.useState(null);
+  const [toastNotif, setToastNotif] = React.useState(null);
+  const [lastLongerTitle, setLastLongerTitle] = React.useState(null);
+  const createLLRef = React.useRef(null);
+  const llBackRef = React.useRef(null);
+
+  // Handle notification tap — route to appropriate action
+  const handleNotificationTap = (notification) => {
+    setNotifOpen(false);
+    switch (notification.type) {
+      case 'result':
+        setResultDetail(notification);
+        break;
+      case 'closing':{
+          const table = TABLES.find((t) => t.id === notification.tableId);
+          if (table) handleJoinTable(table);
+          break;
+        }
+      case 'tournament':{
+          const tournament = TABLES.find((t) => t.id === notification.tournamentId);
+          if (tournament) {setSelectedTournament(tournament);navigate('tournamentDetail');}
+          break;
+        }
+      case 'deposit':
+      case 'withdrawal':
+      case 'deposit_error':
+      case 'withdrawal_error':
+        setTransactionDetail(notification);
+        break;
+      case 'streak':
+        navigate('profile');
+        break;
+      case 'last_longer':
+        setLastLongerSummary(notification);
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Helper to store a table object for later retrieval
+  const registerTable = (table) => {
+    setJoinedTables((prev) => ({ ...prev, [table.id]: table }));
+  };
+  // Lookup table by ID — check dynamic store first, then static TABLES
+  const findTable = (id) => joinedTables[id] || TABLES.find((t) => t.id === id);
+
+  const navigate = (to, dir = 'left') => {
+    setSlideDir(dir);
+    setTransitioning(true);
+    setTimeout(() => {
+      setScreen(to);
+      setTimeout(() => setTransitioning(false), 30);
+    }, 180);
+  };
+
+  React.useEffect(() => {
+    window.__goScreen = (s) => {
+      if (s === 'game') setSelectedTable((prev) => prev || TABLES[0]);
+      if (s === 'tournamentDetail') setSelectedTournament((prev) => prev || TABLES.find((x) => x.mode === 'tournament') || TABLES[0]);
+      setScreen(s);
+    };
+  }, []);
+
+  const handleJoinTable = (table) => {
+    registerTable(table);
+    const isTournament = table.mode === 'tournament';
+    // If already accepted objectives, go straight
+    if (acceptedTableIds.includes(table.id)) {
+      setSelectedTable(table);
+      setMyTableIds((prev) => [table.id, ...prev.filter((id) => id !== table.id)]);
+      // Tournaments skip matchmaking
+      if (isTournament) {navigate('game');} else {navigate('matchmaking');}
+    } else {
+      // Show objectives acceptance modal
+      setPendingTable(table);
+    }
+  };
+  const handleAcceptObjectives = () => {
+    if (!pendingTable) return;
+    const tid = pendingTable.id;
+    const isTournament = pendingTable.mode === 'tournament';
+    setAcceptedTableIds((prev) => [...prev, tid]);
+    const alreadyJoined = myTableIds.includes(tid);
+    setMyTableIds((prev) => [tid, ...prev.filter((id) => id !== tid)]);
+    setSelectedTable(pendingTable);
+    setPendingTable(null);
+    // Tournaments skip matchmaking — go straight to game
+    if (isTournament || alreadyJoined) {navigate('game');} else {navigate('matchmaking');}
+  };
+  const handleDeclineObjectives = () => {setPendingTable(null);};
+  const handleBetMatch = (match) => {
+    const table = getTableForMatch(match);
+    handleJoinTable(table);
+  };
+  const handleResumeTable = (table) => {
+    if (acceptedTableIds.includes(table.id)) {
+      setSelectedTable(table);navigate('game');
+    } else {
+      setPendingTable(table);
+    }
+  };
+  const handleMatched = () => navigate('game');
+  const handleBackToLobby = () => {setSelectedTable(null);setLastLongerOpen(false);navigate('home', 'right');};
+  const handleNav = (id) => {
+    setLastLongerOpen(false);
+    if (id === 'play') {navigate('tables');return;}
+    if (id === 'history') {navigate('friends');return;}
+    if (id === 'rules') {navigate('myTables');return;}
+    navigate(id, id === 'home' ? 'right' : 'left');
+  };
+
+  const headerMap = {
+    home: { title: 'Bet Battle', subtitle: 'Lobby' },
+    myTables: { title: 'Partidas', subtitle: 'Tus partidas en curso' },
+    tables: { title: 'Partidas', subtitle: 'Busca tu partida ideal' },
+    tournamentDetail: { title: selectedTournament ? selectedTournament.title : 'Torneo', subtitle: 'Detalle del torneo' },
+    allLive: { title: 'En Vivo', subtitle: 'Partidos en vivo' },
+    allFeatured: { title: 'Destacados', subtitle: 'Partidos destacados' },
+    matchmaking: { title: 'Matchmaking', subtitle: 'Buscando partida...' },
+    game: { title: 'Partida en Vivo', subtitle: selectedTable ? `$${selectedTable.entry}` : '' },
+    results: { title: 'Resultados' },
+    createTable: { title: 'Crear Partida', subtitle: 'Partida privada con amigos' },
+    friends: { title: 'Amigos', subtitle: 'Tu red de jugadores' },
+    profile: { title: 'Mi Perfil' },
+    rules: { title: 'Reglas', subtitle: 'Aprende a jugar' }
+  };
+
+  const canGoBack = ['matchmaking', 'game', 'results', 'tables', 'myTables', 'friends', 'profile', 'createTable', 'allLive', 'allFeatured', 'tournamentDetail'].includes(screen);
+  const showNav = !['matchmaking', 'results'].includes(screen);
+  const hd = lastLongerOpen && screen === 'game' ?
+  lastLongerTitle ?
+  { title: lastLongerTitle, subtitle: 'Ranking en vivo' } :
+  { title: 'Last Longer', subtitle: 'Apuesta dentro del torneo' } :
+  headerMap[screen] || headerMap.home;
+
+  // Auto-inject Last Longer notifications when entering a tournament
+  React.useEffect(() => {
+    if (screen === 'game' && selectedTable && selectedTable.mode === 'tournament') {
+      const timer = setTimeout(() => {
+        const tName = selectedTable.title || 'el torneo';
+        const tId = selectedTable.id;
+        const llNotif1 = {
+          id: 'lln-priv-' + tId, type: 'last_longer', read: false, timestamp: Date.now(),
+          title: 'Invitación a Last Longer',
+          body: 'CryptoKing_99 te invitó a un Last Longer privado en ' + tName,
+          fromName: 'CryptoKing_99', fromAvatar: '#6C5CE7',
+          lastLongerData: {
+            id: 'll-inv-priv-' + tId, creator: 'CryptoKing_99', creatorAvatar: '#6C5CE7',
+            entry: 50, players: ['CryptoKing_99', 'BetMaster_AR', 'SharkBets'],
+            maxPlayers: 10, isPublic: false, status: 'open',
+            tournamentName: tName, tableId: tId
+          }
+        };
+        const llNotif2 = {
+          id: 'lln-pub-' + tId, type: 'last_longer', read: false, timestamp: Date.now() - 60000,
+          title: 'Last Longer disponible',
+          body: 'Hay un Last Longer público disponible en ' + tName,
+          fromName: 'NightOwlBet', fromAvatar: '#FF7675',
+          lastLongerData: {
+            id: 'll-inv-pub-' + tId, creator: 'NightOwlBet', creatorAvatar: '#FF7675',
+            entry: 25, players: ['NightOwlBet', 'AceBetter'],
+            maxPlayers: 8, isPublic: true, status: 'open',
+            tournamentName: tName, tableId: tId
+          }
+        };
+        if (!NOTIFICATIONS_DATA.find((n) => n.id === llNotif1.id)) {
+          NOTIFICATIONS_DATA.unshift(llNotif2);
+          NOTIFICATIONS_DATA.unshift(llNotif1);
+          window.INJECTED_LAST_LONGERS = window.INJECTED_LAST_LONGERS || [];
+          if (!window.INJECTED_LAST_LONGERS.find((l) => l.id === llNotif1.lastLongerData.id)) {
+            window.INJECTED_LAST_LONGERS.push(llNotif1.lastLongerData);
+            window.INJECTED_LAST_LONGERS.push(llNotif2.lastLongerData);
+          }
+          setNotifVersion((v) => v + 1);
+          setNotifUnread((prev) => prev + 2);
+          setToastNotif(llNotif1);
+          setTimeout(() => setToastNotif(null), 6000);
+        }
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [screen, selectedTable]);
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'home':return <LobbyScreen onJoinTable={handleJoinTable} onSelectMode={(m) => {if (m === 'home') navigate('createTable');else if (m === 'tournament') {setTablesFilter('tournament');navigate('tables');} else if (m === 'allLive') navigate('allLive');else if (m === 'allFeatured') navigate('allFeatured');else {setTablesFilter(null);navigate('tables');}}} onProfile={() => navigate('profile')} myTableIds={myTableIds} onViewMyTables={() => navigate('myTables')} onResumeTable={handleResumeTable} onBetMatch={handleBetMatch} findTable={findTable} />;
+      case 'myTables':return <MyTablesScreen myTableIds={myTableIds} onResumeTable={handleResumeTable} onJoinTable={handleJoinTable} findTable={findTable} />;
+      case 'tables':return <TablesScreen onJoinTable={handleJoinTable} initialFilter={tablesFilter} onSelectTournament={(t) => {setSelectedTournament(t);navigate('tournamentDetail');}} onCreateTable={() => navigate('createTable')} />;
+      case 'tournamentDetail':return <TournamentDetailScreen tournament={selectedTournament} joinedPhaseIds={acceptedTableIds.map(String)} onJoinPhase={(phase) => {
+          const phaseTable = {
+            id: 'phase-' + phase.id,
+            phaseId: phase.id,
+            mode: 'tournament', category: selectedTournament.category || 'free',
+            entry: phase.entry, players: phase.players || 0, maxPlayers: phase.maxPlayers || null,
+            timeLeft: phase.timeLeft || '—', prize: phase.prize, level: selectedTournament.level || 3,
+            title: selectedTournament.title + ' — ' + phase.label,
+            tournamentLogo: selectedTournament.tournamentLogo,
+            teams: selectedTournament.teams || [],
+            objectives: phase.objectives || selectedTournament.objectives,
+            prizeDistribution: phase.prizeDistribution || selectedTournament.prizeDistribution
+          };
+          registerTable(phaseTable);
+          handleJoinTable(phaseTable);
+        }} onJoinFullTournament={() => {if (selectedTournament) handleJoinTable(selectedTournament);}} />;
+      case 'allLive':return <AllLiveScreen onBetMatch={handleBetMatch} />;
+      case 'allFeatured':return <AllFeaturedScreen onBetMatch={handleBetMatch} />;
+      case 'matchmaking':return <MatchmakingScreen table={selectedTable} onCancel={() => navigate('home', 'right')} onMatched={handleMatched} />;
+      case 'game':return <GameTableScreen table={selectedTable} onBack={handleBackToLobby} myTableIds={myTableIds} onSwitchTable={(table) => {setSelectedTable(table);}} findTable={findTable} lastLongerOpen={lastLongerOpen} onOpenLastLonger={() => setLastLongerOpen(true)} onCloseLastLonger={() => setLastLongerOpen(false)} lastLongerJoined={lastLongerJoined} onExposeCreateLL={(fn) => {createLLRef.current = fn;}} onLLTitleChange={(t) => setLastLongerTitle(t)} onExposeLLBack={(fn) => {llBackRef.current = fn;}} />;
+      case 'results':return <ResultsScreen onBack={handleBackToLobby} />;
+      case 'friends':return <FriendsScreen onNavigate={(id) => {if (id === 'createTable') navigate('createTable');else navigate(id);}} />;
+      case 'createTable':return <CreateTableScreen onBack={() => navigate('home', 'right')} onStart={(config) => {
+          const friendsTable = {
+            id: 800 + (Math.random() * 100 | 0),
+            mode: 'basic',
+            category: config ? config.category : 'free',
+            entry: config ? config.entry : 10,
+            players: 1,
+            maxPlayers: config ? config.maxPlayers : 6,
+            timeLeft: config ? config.timeLimit : '3h',
+            prize: config ? config.entry * config.maxPlayers * 0.95 : 57,
+            level: 1,
+            title: 'Mesa con Amigos',
+            teams: [],
+            objectives: [
+            { id: 'o1', text: 'Realiza al menos ' + (config ? config.minBets : 3) + ' apuestas', type: 'progress', current: 0, target: config ? config.minBets : 3, points: 100, deadline: config ? config.timeLimit : '2h' }],
+
+            prizeDistribution: { first: 50, second: 30, third: 20 }
+          };
+          registerTable(friendsTable);
+          setSelectedTable(friendsTable);
+          setMyTableIds((prev) => [friendsTable.id, ...prev.filter((id) => id !== friendsTable.id)]);
+          setAcceptedTableIds((prev) => [...prev, friendsTable.id]);
+          navigate('matchmaking');
+        }} />;
+      case 'profile':return <ProfileScreen />;
+      case 'rules':return <RulesScreen />;
+      default:return <LobbyScreen onJoinTable={handleJoinTable} onSelectMode={() => navigate('tables')} onProfile={() => navigate('profile')} />;
+    }
+  };
+
+  // Apply color theme
+  applyColorTheme(t.colorTheme || 'Stake');
+
+  // Override accent dynamically (only if manually changed from theme default)
+  if (t.colorTheme === 'Nuevo') {
+    if (t.accentColor !== '#016394' && t.accentColor !== '#1475e1') {
+      C.accent = t.accentColor;
+      C.accentLight = t.accentColor;
+    }
+  } else {
+    if (t.accentColor !== '#1475E1' && t.accentColor !== '#1475e1') {
+      C.accent = t.accentColor;
+      C.accentLight = t.accentColor;
+    }
+  }
+
+  const frameColor = t.colorTheme === 'Nuevo' ? '#272C32' : t.deviceFrame === 'dark' ? '#0B1A25' : '#1A2C38';
+  const themeKey = (t.colorTheme || 'Stake') + '-' + t.accentColor;
+
+  return (
+    <div key={themeKey}>          <IOSDevice screenWidth={393} screenHeight={852} frameColor={frameColor}>
+            <div style={{
+          display: 'flex', flexDirection: 'column', height: '100%',
+          background: C.bg, color: C.text1
+        }}>
+              <div style={{ background: C.bgLight }}><IOSStatusBar dark={true} /></div>
+              {screen !== 'matchmaking' &&
+          <AppHeader
+            title={hd.title}
+            subtitle={hd.subtitle}
+            logoSrc={screen === 'home' ? 'assets/betbattle-logo.svg' : undefined}
+            onBack={canGoBack ? () => {if (lastLongerOpen && screen === 'game' && lastLongerTitle) {if (llBackRef.current) llBackRef.current();setLastLongerTitle(null);} else if (lastLongerOpen && screen === 'game') {setLastLongerOpen(false);setLastLongerTitle(null);} else {navigate('home', 'right');}} : null}
+            onProfile={lastLongerOpen && screen === 'game' ? null : () => navigate('profile')}
+            notificationBell={screen === 'home' || screen === 'game' && !lastLongerOpen ? <NotificationBell unreadCount={notifUnread} onClick={() => {setNotifOpen(true);setNotifUnread(0);}} /> : null}
+            rightAction={lastLongerOpen && screen === 'game' && !lastLongerTitle ?
+            <button onClick={() => {if (createLLRef.current) createLLRef.current();}} style={{
+              padding: '6px 12px', fontSize: 11, fontWeight: 700,
+              background: C.accent, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', height: "32px"
+            }}>+ Crear</button> :
+            screen === 'home' ?
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: C.card, padding: '6px 10px', height: "32px", borderRadius: "10px" }}>
+                      <svg width={12} height={12} viewBox="0 0 512 512" fill="none"><path d="M457.6 290.987V312.32C457.6 318.08 453.12 322.773 447.147 322.987H416C404.694 322.987 394.454 314.667 393.6 303.573C392.96 296.96 395.52 290.773 399.787 286.507C403.627 282.453 408.96 280.32 414.72 280.32H446.934C453.12 280.533 457.6 285.227 457.6 290.987Z" fill="#5dd9a9" /><path d="M383.787 270.72C373.12 281.173 368 296.747 372.267 312.96C377.813 332.8 397.227 345.387 417.707 345.387H436.267C448 345.387 457.6 354.987 457.6 366.72V370.773C457.6 414.933 421.547 450.987 377.387 450.987H132.48C88.3199 450.987 52.2666 414.933 52.2666 370.773V227.2C52.2666 200.96 64.8533 177.707 84.2666 163.2C97.7066 152.96 114.347 146.987 132.48 146.987H377.387C421.547 146.987 457.6 183.04 457.6 227.2V236.587C457.6 248.32 448 257.92 436.267 257.92H414.507C402.56 257.92 391.68 262.613 383.787 270.72Z" fill="#5dd9a9" /><path d="M345.6 102.827C351.36 108.587 346.453 117.547 338.346 117.547L174.506 117.333C165.12 117.333 160.213 105.813 167.04 99.2L201.6 64.4266C230.826 35.4133 278.186 35.4133 307.413 64.4266L344.746 102.187C344.96 102.4 345.386 102.613 345.6 102.827Z" fill="#5dd9a9" /></svg>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{USER_PROFILE.balance.toFixed(0)}</span>
+                      <span style={{ fontSize: 10, color: '#5dd9a9', fontWeight: 600 }}>USD</span>
+                    </div> :
+            null} />
+
+          }
+              <div style={{
+            flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative',
+            opacity: transitioning ? 0 : 1,
+            transform: transitioning ? `translateX(${slideDir === 'left' ? '-10px' : '10px'})` : 'translateX(0)',
+            transition: 'opacity 0.18s, transform 0.18s'
+          }}>
+                {renderScreen()}
+              </div>
+              {showNav && <BottomNav active={screen} onNavigate={handleNav} />}
+              {/* Objectives acceptance modal overlay */}
+              {pendingTable && <ObjectivesAcceptModal table={pendingTable} onAccept={handleAcceptObjectives} onDecline={handleDeclineObjectives} variant={t.objectivesStyle || 'default'} />}
+              {/* Notifications panel */}
+              <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} onAcceptInvite={(table) => {setNotifOpen(false);handleJoinTable(table);}} onNotificationTap={handleNotificationTap} notificationVersion={notifVersion} />
+              {/* Notification detail modals */}
+              {resultDetail && <GameResultDetailModal notification={resultDetail} onClose={() => setResultDetail(null)} />}
+              {transactionDetail && <TransactionDetailModal notification={transactionDetail} onClose={() => setTransactionDetail(null)} onRetry={(n) => {setTransactionDetail(null);navigate('profile');}} />}
+              {lastLongerSummary && <LastLongerSummaryModal notification={lastLongerSummary} onClose={() => setLastLongerSummary(null)} onAccept={(llData) => {setLastLongerSummary(null);setLastLongerJoined(true);if (llData && llData.tableId) {const t = findTable(llData.tableId);if (t) {setSelectedTable(t);if (screen !== 'game') navigate('game');}}setLastLongerOpen(true);}} />}
+              {toastNotif && screen === 'game' && !lastLongerSummary &&
+          <div onClick={() => {setToastNotif(null);setLastLongerSummary(toastNotif);}} style={{
+            position: 'absolute', top: 100, left: 14, right: 14, zIndex: 150,
+            background: C.bgLight, borderRadius: 14, padding: '12px 14px',
+            border: '1px solid ' + C.yellow + '30',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', gap: 10,
+            cursor: 'pointer'
+          }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: C.yellow + '18', border: '1px solid ' + C.yellow + '25', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.yellow} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" /></svg>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{toastNotif.title}</div>
+                    <div style={{ fontSize: 10, color: C.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{toastNotif.body}</div>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.text3} strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+                </div>
+          }
+            </div>
+          </IOSDevice>
+
+          <TweaksPanel>
+            <TweakSection label="Tema" />
+            <TweakRadio label="Paleta de colores" value={t.colorTheme || 'Stake'} options={['Stake', 'Nuevo']} onChange={(v) => setTweak('colorTheme', v)} />
+            <TweakColor label="Color acento" value={t.accentColor} onChange={(v) => setTweak('accentColor', v)} />
+            <TweakRadio label="Frame" value={t.deviceFrame} options={['dark', 'light']} onChange={(v) => setTweak('deviceFrame', v)} />
+            <TweakSection label="Objetivos" />
+            <TweakRadio label="Estilo modal" value={t.objectivesStyle || 'default'} options={['default', 'gold', 'minimal']} onChange={(v) => setTweak('objectivesStyle', v)} />
+          </TweaksPanel>
+        </div>);
+
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bet Battle</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #071824; font-family: 'DM Sans', system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+    ::-webkit-scrollbar { width: 0; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<template id="__bundler_thumbnail" data-bg-color="#071824">
+  <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <rect width="200" height="200" rx="30" fill="#0B1A25"/>
+    <text x="100" y="115" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="48" fill="#1475e1">BB</text>
+  </svg>
+</template>
+</head>
+<body style="background-color: rgb(7, 24, 36);">
+  <div id="root"></div>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="components/data.jsx"></script>
+  <script type="text/babel" src="components/icons.jsx"></script>
+  <script type="text/babel" src="components/crests.jsx"></script>
+  <script type="text/babel" src="components/nav.jsx"></script>
+  <script type="text/babel" src="components/lobby.jsx"></script>
+  <script type="text/babel" src="components/matchmaking.jsx"></script>
+  <script type="text/babel" src="components/game-table.jsx"></script>
+  <script type="text/babel" src="components/screens.jsx"></script>
+  <script type="text/babel" src="components/friends.jsx"></script>
+  <script type="text/babel" src="components/objectives.jsx"></script>
+  <script type="text/babel" src="components/betting-markets-data.jsx"></script>
+  <script type="text/babel" src="components/betting-markets-ui.jsx"></script>
+  <script type="text/babel" src="components/bet-history-data.jsx"></script>
+  <script type="text/babel" src="components/bet-history-ui.jsx"></script>
+  <script type="text/babel" src="components/create-table.jsx"></script>
+
+  <script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#1475e1",
+  "deviceFrame": "light",
+  "objectivesStyle": "default",
+  "colorTheme": "Nuevo"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [screen, setScreen] = React.useState('home');
+  const [selectedTable, setSelectedTable] = React.useState(null);
+      const [tablesFilter, setTablesFilter] = React.useState(null);
+  const [transitioning, setTransitioning] = React.useState(false);
+  const [slideDir, setSlideDir] = React.useState('left');
+  const [myTableIds, setMyTableIds] = React.useState([...INITIAL_MY_TABLES]);
+  const [pendingTable, setPendingTable] = React.useState(null);
+  const [acceptedTableIds, setAcceptedTableIds] = React.useState([...INITIAL_MY_TABLES]);
+
+  const navigate = (to, dir = 'left') => {
+    setSlideDir(dir);
+    setTransitioning(true);
+    setTimeout(() => {
+      setScreen(to);
+      setTimeout(() => setTransitioning(false), 30);
+    }, 180);
+  };
+
+  const handleJoinTable = (table) => {
+    // If already accepted objectives, go straight to matchmaking
+    if (acceptedTableIds.includes(table.id)) {
+      setSelectedTable(table);
+      setMyTableIds(prev => [table.id, ...prev.filter(id => id !== table.id)]);
+      navigate('matchmaking');
+    } else {
+      // Show objectives acceptance modal
+      setPendingTable(table);
+    }
+  };
+  const handleAcceptObjectives = () => {
+    if (!pendingTable) return;
+    const tid = pendingTable.id;
+    setAcceptedTableIds(prev => [...prev, tid]);
+    const alreadyJoined = myTableIds.includes(tid);
+    setMyTableIds(prev => [tid, ...prev.filter(id => id !== tid)]);
+    setSelectedTable(pendingTable);
+    setPendingTable(null);
+    if (alreadyJoined) { navigate('game'); } else { navigate('matchmaking'); }
+  };
+  const handleDeclineObjectives = () => { setPendingTable(null); };
+  const handleBetMatch = (match) => {
+    const table = getTableForMatch(match);
+    handleJoinTable(table);
+  };
+  const handleResumeTable = (table) => {
+    if (acceptedTableIds.includes(table.id)) {
+      setSelectedTable(table);navigate('game');
+    } else {
+      setPendingTable(table);
+    }
+  };
+  const handleMatched = () => navigate('game');
+  const handleBackToLobby = () => {setSelectedTable(null);navigate('home', 'right');};
+  const handleNav = (id) => {
+    if (id === 'play') {navigate('tables');return;}
+    if (id === 'history') {navigate('friends');return;}
+    navigate(id, id === 'home' ? 'right' : 'left');
+  };
+
+  const headerMap = {
+    home: { title: 'Bet Battle', subtitle: 'Lobby' },
+    myTables: { title: 'Mis mesas', subtitle: 'Mesas en las que participas' },
+    tables: { title: 'Partidas', subtitle: 'Busca tu partida ideal' },
+    matchmaking: { title: 'Matchmaking', subtitle: 'Buscando partida...' },
+    game: { title: 'Mesa en Vivo', subtitle: selectedTable ? `${selectedTable.entry} BB` : '' },
+    results: { title: 'Resultados' },
+    createTable: { title: 'Crear Mesa', subtitle: 'Mesa privada con amigos' },
+    friends: { title: 'Amigos', subtitle: 'Tu red de jugadores' },
+    profile: { title: 'Mi Perfil' },
+    rules: { title: 'Reglas', subtitle: 'Aprende a jugar' }
+  };
+
+  const canGoBack = ['matchmaking', 'game', 'results', 'tables', 'myTables', 'friends', 'profile', 'createTable'].includes(screen);
+  const showNav = !['matchmaking', 'results'].includes(screen);
+  const hd = headerMap[screen] || headerMap.home;
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'home':return <LobbyScreen onJoinTable={handleJoinTable} onSelectMode={(m) => {if (m === 'home') navigate('createTable'); else if (m === 'tournament') { setTablesFilter('tournament'); navigate('tables'); } else { setTablesFilter(null); navigate('tables'); }}} onProfile={() => navigate('profile')} myTableIds={myTableIds} onViewMyTables={() => navigate('myTables')} onResumeTable={handleResumeTable} onBetMatch={handleBetMatch} />;
+      case 'myTables':return <MyTablesScreen myTableIds={myTableIds} onResumeTable={handleResumeTable} />;
+      case 'tables':return <TablesScreen onJoinTable={handleJoinTable} initialFilter={tablesFilter} />;
+      case 'matchmaking':return <MatchmakingScreen table={selectedTable} onCancel={() => navigate('home', 'right')} onMatched={handleMatched} />;
+      case 'game':return <GameTableScreen table={selectedTable} onBack={handleBackToLobby} />;
+      case 'results':return <ResultsScreen onBack={handleBackToLobby} />;
+      case 'friends':return <FriendsScreen onNavigate={(id) => {if (id === 'createTable') navigate('createTable');else navigate(id);}} />;
+      case 'createTable':return <CreateTableScreen onBack={() => navigate('home', 'right')} onStart={() => navigate('matchmaking')} />;
+      case 'profile':return <ProfileScreen />;
+      case 'rules':return <RulesScreen />;
+      default:return <LobbyScreen onJoinTable={handleJoinTable} onSelectMode={() => navigate('tables')} onProfile={() => navigate('profile')} />;
+    }
+  };
+
+  // Apply color theme
+  applyColorTheme(t.colorTheme || 'Stake');
+
+  // Override accent dynamically (only if manually changed from theme default)
+  if (t.colorTheme === 'Nuevo') {
+    if (t.accentColor !== '#016394' && t.accentColor !== '#1475e1') {
+      C.accent = t.accentColor;
+      C.accentLight = t.accentColor;
+    }
+  } else {
+    if (t.accentColor !== '#1475E1' && t.accentColor !== '#1475e1') {
+      C.accent = t.accentColor;
+      C.accentLight = t.accentColor;
+    }
+  }
+
+  const frameColor = t.colorTheme === 'Nuevo' ? '#272C32' : (t.deviceFrame === 'dark' ? '#0B1A25' : '#1A2C38');
+  const themeKey = (t.colorTheme || 'Stake') + '-' + t.accentColor;
+
+  return (
+    <div key={themeKey}>          <IOSDevice screenWidth={393} screenHeight={852} frameColor={frameColor}>
+            <div style={{
+          display: 'flex', flexDirection: 'column', height: '100%',
+          background: C.bg, color: C.text1
+        }}>
+              <div style={{ background: C.bgLight }}><IOSStatusBar dark={true} /></div>
+              {screen !== 'matchmaking' &&
+          <AppHeader
+            title={hd.title}
+            subtitle={hd.subtitle}
+            onBack={canGoBack ? () => navigate('home', 'right') : null}
+            onProfile={() => navigate('profile')}
+            rightAction={screen === 'home' ?
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: C.card, padding: '6px 10px', borderRadius: "12px" }}>
+                      <Icon name="wallet" size={12} color={C.green} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.text1 }}>{USER_PROFILE.balance.toFixed(0)}</span>
+                      <span style={{ fontSize: 10, color: C.green, fontWeight: 600 }}>BB</span>
+                    </div> :
+            null} />
+
+          }
+              <div style={{
+            flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative',
+            opacity: transitioning ? 0 : 1,
+            transform: transitioning ? `translateX(${slideDir === 'left' ? '-10px' : '10px'})` : 'translateX(0)',
+            transition: 'opacity 0.18s, transform 0.18s'
+          }}>
+                {renderScreen()}
+              </div>
+              {showNav && <BottomNav active={screen} onNavigate={handleNav} />}
+              {/* Objectives acceptance modal overlay */}
+              {pendingTable && <ObjectivesAcceptModal table={pendingTable} onAccept={handleAcceptObjectives} onDecline={handleDeclineObjectives} variant={t.objectivesStyle || 'default'} />}
+            </div>
+          </IOSDevice>
+
+          <TweaksPanel>
+            <TweakSection label="Tema" />
+            <TweakRadio label="Paleta de colores" value={t.colorTheme || 'Stake'} options={['Stake', 'Nuevo']} onChange={(v) => setTweak('colorTheme', v)} />
+            <TweakColor label="Color acento" value={t.accentColor} onChange={(v) => setTweak('accentColor', v)} />
+            <TweakRadio label="Frame" value={t.deviceFrame} options={['dark', 'light']} onChange={(v) => setTweak('deviceFrame', v)} />
+            <TweakSection label="Objetivos" />
+            <TweakRadio label="Estilo modal" value={t.objectivesStyle || 'default'} options={['default', 'gold', 'minimal']} onChange={(v) => setTweak('objectivesStyle', v)} />
+          </TweaksPanel>
+        </div>);
+
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
